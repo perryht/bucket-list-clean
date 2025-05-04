@@ -1,40 +1,52 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-
-type Activity = {
-  id: number
-  title: string
-  duration: number
-  durationUnit: string
-  frequency: number
-  frequencyUnit: string
-  user_id: string
-}
+import Navbar from '@/components/Navbar'
+import ActivityCard from '@/components/ActivityCard'
+import ProgressBar from '@/components/ProgressBar'
 
 export default function Dashboard() {
+  const supabase = createClient()
   const router = useRouter()
-  const [profile, setProfile] = useState({ name: '', ageNow: 0, ageEnd: 0 })
-  const [activities, setActivities] = useState<Activity[]>([])
+  const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<any>(null)
+  const [activities, setActivities] = useState<any[]>([])
   const [form, setForm] = useState({
-    title: '',
-    duration: 30,
-    durationUnit: 'minutes',
-    frequency: 1,
-    frequencyUnit: 'week',
+    name: '',
+    frequency: '',
+    duration: '',
+    unit: 'minutes'
   })
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [editForm, setEditForm] = useState<Partial<Activity>>({})
 
-  const firstName = profile.name.split(' ')[0] || ''
-  const yearsLeft = Math.max(profile.ageEnd - profile.ageNow, 0)
+  // Calculate % of life left
+  const percentageOfLifeLeft = () => {
+    if (!profile) return 100
+    const currentAge = profile.current_age
+    const deathAge = profile.estimated_death_age
+    return Math.max(0, Math.min(100, ((deathAge - currentAge) / deathAge) * 100))
+  }
+
+  // Calculate days left
+  const daysLeft = () => {
+    if (!profile) return 0
+    const yearsLeft = profile.estimated_death_age - profile.current_age
+    return Math.max(0, Math.floor(yearsLeft * 365.25))
+  }
 
   useEffect(() => {
-    const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return router.push('/login')
+    const getUserAndData = async () => {
+      const {
+        data: { user }
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        router.push('/')
+        return
+      }
+
+      setUser(user)
 
       const { data: profileData } = await supabase
         .from('profiles')
@@ -42,188 +54,119 @@ export default function Dashboard() {
         .eq('id', user.id)
         .single()
 
-      if (profileData) {
-        setProfile({
-          name: profileData.name || '',
-          ageNow: Number(profileData.age_now) || 0,
-          ageEnd: Number(profileData.age_estimate) || 0,
-        })
-      }
+      setProfile(profileData)
 
-      const { data: acts } = await supabase
+      const { data: activityData } = await supabase
         .from('activities')
         .select('*')
         .eq('user_id', user.id)
 
-      if (acts) setActivities(acts)
+      setActivities(activityData || [])
     }
 
-    load()
-  }, [router])
+    getUserAndData()
+  }, [])
 
-  const handleAdd = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!form.title.trim() || !user) return
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setForm({ ...form, [e.target.name]: e.target.value })
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user) {
+      throw new Error('User not found. Please sign in.')
+    }
 
     const { error } = await supabase.from('activities').insert({
       ...form,
-      user_id: user!.id,
+      user_id: user.id,
       completed: false
     })
 
-    if (error) {
-      console.error('Insert error:', error.message)
-      return
+    if (!error) {
+      const { data: updatedActivities } = await supabase
+        .from('activities')
+        .select('*')
+        .eq('user_id', user.id)
+      setActivities(updatedActivities || [])
+      setForm({
+        name: '',
+        frequency: '',
+        duration: '',
+        unit: 'minutes'
+      })
     }
-
-    setForm({ ...form, title: '' })
-
-    const { data: updated } = await supabase
-      .from('activities')
-      .select('*')
-      .eq('user_id', user!.id)
-
-    if (updated) setActivities(updated)
-  }
-
-  const handleDelete = async (id: number) => {
-    await supabase.from('activities').delete().eq('id', id)
-    setActivities(prev => prev.filter(a => a.id !== id))
-  }
-
-  const handleSaveProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    await supabase.from('profiles').upsert({
-      id: user!.id,
-      name: profile.name,
-      age_now: profile.ageNow,
-      age_estimate: profile.ageEnd,
-    })
-  }
-
-  const handleEdit = (activity: Activity) => {
-    setEditingId(activity.id)
-    setEditForm({ ...activity })
-  }
-
-  const handleSaveEdit = async () => {
-    if (!editingId) return
-    const { error } = await supabase.from('activities').update(editForm).eq('id', editingId)
-    if (error) {
-      console.error('Update error:', error.message)
-      return
-    }
-    setEditingId(null)
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data } = await supabase.from('activities').select('*').eq('user_id', user!.id)
-    if (data) setActivities(data)
   }
 
   return (
-    <main className="min-h-screen bg-[#202123] text-white px-6 py-8">
-      <h1 className="text-2xl font-semibold mb-6">
-        {firstName ? (
-          <>
-            Hey {firstName}!<br />
-            <span className="text-lg font-normal">
-              Here's your bucket list for the next {yearsLeft} {yearsLeft === 1 ? 'year' : 'years'}!
-            </span>
-          </>
-        ) : 'Your Bucket List'}
-      </h1>
-
-      <div className="grid md:grid-cols-2 gap-6 mb-8">
-        <div className="bg-[#343541] p-6 rounded-xl border border-[#3f4045]">
-          <h2 className="text-lg font-bold mb-4">Add New Activity</h2>
-          <input type="text" placeholder="New activity" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full bg-[#2a2b32] text-white border border-[#3f4045] rounded-md p-2 mb-4" />
-          <div className="flex flex-wrap items-center gap-2 mb-6 text-green-400 font-medium">
-            <span>For</span>
-            <input type="number" value={form.duration} onChange={(e) => setForm({ ...form, duration: Number(e.target.value) })} className="w-20 text-white bg-[#2a2b32] border border-[#3f4045] rounded-md p-2 text-center" />
-            <select value={form.durationUnit} onChange={(e) => setForm({ ...form, durationUnit: e.target.value })} className="bg-[#2a2b32] text-white border border-[#3f4045] rounded-md p-2">
-              <option value="minutes">minutes</option>
-              <option value="hours">hours</option>
-              <option value="days">days</option>
-            </select>
-            <input type="number" value={form.frequency} onChange={(e) => setForm({ ...form, frequency: Number(e.target.value) })} className="w-20 text-white bg-[#2a2b32] border border-[#3f4045] rounded-md p-2 text-center" />
-            <span>times a</span>
-            <select value={form.frequencyUnit} onChange={(e) => setForm({ ...form, frequencyUnit: e.target.value })} className="bg-[#2a2b32] text-white border border-[#3f4045] rounded-md p-2">
-              <option value="day">day</option>
-              <option value="week">week</option>
-              <option value="month">month</option>
-              <option value="year">year</option>
-            </select>
-          </div>
-          <button onClick={handleAdd} className="w-full bg-green-500 text-white py-2 rounded-md hover:bg-green-600 transition">Add Activity</button>
-        </div>
-
-        <div className="bg-[#343541] p-6 rounded-xl border border-[#3f4045]">
-          <h2 className="text-lg font-bold mb-4">Your Profile</h2>
-          <input type="text" placeholder="Full name" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} className="w-full bg-[#2a2b32] text-white border border-[#3f4045] rounded-md p-2 mb-6" />
-          <div className="flex flex-wrap items-center gap-2 mb-6 text-green-400 font-medium text-lg">
-            <span>I am</span>
-            <input type="number" value={profile.ageNow} onChange={(e) => setProfile({ ...profile, ageNow: Number(e.target.value) })} className="w-20 text-white bg-[#2a2b32] border border-[#3f4045] rounded-md p-2 text-center" />
-            <span>years old</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 mb-6 text-green-400 font-medium text-lg">
-            <span>and hope to live until I’m at least</span>
-            <input type="number" value={profile.ageEnd} onChange={(e) => setProfile({ ...profile, ageEnd: Number(e.target.value) })} className="w-20 text-white bg-[#2a2b32] border border-[#3f4045] rounded-md p-2 text-center" />
-            <span>years old</span>
-          </div>
-          <button onClick={handleSaveProfile} className="w-full bg-[#2a2b32] border border-[#8e8e8e] text-white py-2 rounded-md hover:bg-[#3a3b40] transition">Save Profile</button>
-        </div>
+    <div className="min-h-screen bg-gray-100 p-4">
+      <Navbar />
+      <div className="text-center mb-6">
+        <h1 className="text-4xl font-bold mb-2">Your Dashboard</h1>
+        <p className="text-lg">You have approximately <strong>{daysLeft()}</strong> days left to live.</p>
+        <ProgressBar percentage={percentageOfLifeLeft()} />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {activities.map((a) => {
-          const freqPerYear = a.frequency * (a.frequencyUnit === 'day' ? 365 : a.frequencyUnit === 'week' ? 52 : a.frequencyUnit === 'month' ? 12 : 1)
-          const estimatedRemaining = yearsLeft * freqPerYear
+      <form onSubmit={handleSubmit} className="max-w-md mx-auto bg-white p-6 rounded shadow mb-6">
+        <h2 className="text-xl font-semibold mb-4">Add New Activity</h2>
+        <input
+          type="text"
+          name="name"
+          placeholder="Activity name"
+          value={form.name}
+          onChange={handleChange}
+          required
+          className="w-full p-2 mb-3 border rounded"
+        />
+        <input
+          type="number"
+          name="frequency"
+          placeholder="Frequency (e.g. 3)"
+          value={form.frequency}
+          onChange={handleChange}
+          required
+          className="w-full p-2 mb-3 border rounded"
+        />
+        <select
+          name="unit"
+          value={form.unit}
+          onChange={handleChange}
+          className="w-full p-2 mb-3 border rounded"
+        >
+          <option value="day">Per Day</option>
+          <option value="week">Per Week</option>
+          <option value="month">Per Month</option>
+          <option value="year">Per Year</option>
+        </select>
+        <input
+          type="number"
+          name="duration"
+          placeholder="Duration (e.g. 60)"
+          value={form.duration}
+          onChange={handleChange}
+          required
+          className="w-full p-2 mb-3 border rounded"
+        />
+        <select
+          name="unit"
+          value={form.unit}
+          onChange={handleChange}
+          className="w-full p-2 mb-4 border rounded"
+        >
+          <option value="minutes">Minutes</option>
+          <option value="hours">Hours</option>
+          <option value="days">Days</option>
+        </select>
+        <button type="submit" className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600">
+          Add Activity
+        </button>
+      </form>
 
-          return (
-            <div key={a.id} className="bg-[#343541] border border-[#3f4045] rounded-lg p-4 relative">
-              {editingId === a.id ? (
-                <>
-                  <input type="text" value={editForm.title || ''} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} className="w-full bg-[#2a2b32] text-white border border-[#3f4045] rounded-md p-2 mb-2" />
-                  <div className="flex gap-2 mb-2">
-                    <input type="number" value={editForm.duration || 0} onChange={(e) => setEditForm({ ...editForm, duration: Number(e.target.value) })} className="w-20 bg-[#2a2b32] text-white border border-[#3f4045] rounded-md p-2" />
-                    <select value={editForm.durationUnit || 'minutes'} onChange={(e) => setEditForm({ ...editForm, durationUnit: e.target.value })} className="bg-[#2a2b32] text-white border border-[#3f4045] rounded-md p-2">
-                      <option value="minutes">minutes</option>
-                      <option value="hours">hours</option>
-                      <option value="days">days</option>
-                    </select>
-                  </div>
-                  <div className="flex gap-2 mb-4">
-                    <input type="number" value={editForm.frequency || 0} onChange={(e) => setEditForm({ ...editForm, frequency: Number(e.target.value) })} className="w-20 bg-[#2a2b32] text-white border border-[#3f4045] rounded-md p-2" />
-                    <select value={editForm.frequencyUnit || 'week'} onChange={(e) => setEditForm({ ...editForm, frequencyUnit: e.target.value })} className="bg-[#2a2b32] text-white border border-[#3f4045] rounded-md p-2">
-                      <option value="day">day</option>
-                      <option value="week">week</option>
-                      <option value="month">month</option>
-                      <option value="year">year</option>
-                    </select>
-                  </div>
-                  <button onClick={handleSaveEdit} className="text-sm text-white border border-green-500 rounded px-3 py-1 hover:bg-green-500 hover:text-black">Save</button>
-                </>
-              ) : (
-                <>
-                  <h3 className="font-medium mb-1">{a.title}</h3>
-                  <p className="text-sm text-gray-300 mb-2">{a.duration} {a.durationUnit} / {a.frequency}x per {a.frequencyUnit}</p>
-                  <div className="w-full h-2 bg-[#3f4045] rounded-full overflow-hidden">
-                    <div className="h-full bg-green-500" style={{ width: `${profile.ageEnd > 0 ? Math.round((yearsLeft / profile.ageEnd) * 100) : 0}%` }} />
-                  </div>
-                  <p className="text-xs text-right text-gray-400 mt-1">{profile.ageEnd > 0 ? Math.round((yearsLeft / profile.ageEnd) * 100) : 0}% of your life remains</p>
-                  <p className="text-xs text-gray-400 mt-1">~{estimatedRemaining.toLocaleString()} left</p>
-                  <div className="absolute top-2 right-2 flex gap-2">
-                    <button onClick={() => handleEdit(a)} className="text-sm text-white border border-[#8e8e8e] rounded px-2 hover:text-blue-400 hover:border-blue-400 transition">Edit</button>
-                    <button onClick={() => handleDelete(a.id)} className="text-sm text-white border border-[#8e8e8e] rounded px-2 hover:text-red-400 hover:border-red-400 transition">Delete</button>
-                  </div>
-                </>
-              )}
-            </div>
-          )
-        })}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        {activities.map((activity) => (
+          <ActivityCard key={activity.id} activity={activity} profile={profile} />
+        ))}
       </div>
-    </main>
+    </div>
   )
 }
