@@ -1,11 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
-import { useRouter } from 'next/navigation'
-import Navbar from '@/components/Navbar'
-import ActivityCard from '@/components/ActivityCard'
-import ProgressBar from '@/components/ProgressBar'
+import { createClient } from '../../utils/supabase/client'
+import Navbar from '../../components/Navbar'
+import ActivityCard from '../../components/ActivityCard'
+import ProgressBar from '../../components/ProgressBar'                                                                  
 
 export default function Dashboard() {
   const supabase = createClient()
