@@ -76,11 +76,11 @@ export default function Dashboard() {
       throw new Error('User not found. Please sign in.')
     }
 
-    const typedUser = user as { id: string }
+    const userId = user.id
 
     const { error } = await supabase.from('activities').insert({
       ...form,
-      user_id: typedUser.id,
+      user_id: userId,
       completed: false
     })
 
@@ -88,7 +88,7 @@ export default function Dashboard() {
       const { data: updatedActivities } = await supabase
         .from('activities')
         .select('*')
-        .eq('user_id', typedUser.id)
+        .eq('user_id', userId)
 
       setActivities(updatedActivities || [])
       setForm({
