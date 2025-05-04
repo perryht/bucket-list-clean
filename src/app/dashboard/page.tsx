@@ -39,7 +39,8 @@ export default function Dashboard() {
         data: { user }
       } = await supabase.auth.getUser()
 
-      if (!user) {
+      const userId = user?.id ?? ''
+      if (!userId) {
         router.push('/')
         return
       }
@@ -49,7 +50,7 @@ export default function Dashboard() {
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('id', userId)
         .single()
 
       setProfile(profileData)
@@ -57,7 +58,7 @@ export default function Dashboard() {
       const { data: activityData } = await supabase
         .from('activities')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
 
       setActivities(activityData || [])
     }
@@ -73,15 +74,15 @@ export default function Dashboard() {
     e.preventDefault()
 
     const userId = user?.id ?? ''
-if (!userId) {
-  throw new Error('User not found. Please sign in.')
-}
+    if (!userId) {
+      throw new Error('User not found. Please sign in.')
+    }
 
-const { error } = await supabase.from('activities').insert({
-  ...form,
-  user_id: userId,
-  completed: false
-})
+    const { error } = await supabase.from('activities').insert({
+      ...form,
+      user_id: userId,
+      completed: false
+    })
 
     if (!error) {
       const { data: updatedActivities } = await supabase
