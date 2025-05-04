@@ -1,10 +1,7 @@
-'use client'
-
-export default function Dashboard() {
-  return (
-    <div className="text-white p-10">
+git add src/app/dashboard/page.tsx
+git commit -m "Clean dashboard with working UTF-8 encoding"
+-10">
       <h1>Dashboard works ✅</h1>
     </div>
   )
 }
-
