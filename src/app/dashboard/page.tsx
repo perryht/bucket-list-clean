@@ -10,7 +10,7 @@ import ProgressBar from '@/components/ProgressBar'
 export default function Dashboard() {
   const supabase = createClient()
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<any | null>(null)
   const [profile, setProfile] = useState<any>(null)
   const [activities, setActivities] = useState<any[]>([])
   const [form, setForm] = useState({
@@ -20,7 +20,6 @@ export default function Dashboard() {
     unit: 'minutes'
   })
 
-  // Calculate % of life left
   const percentageOfLifeLeft = () => {
     if (!profile) return 100
     const currentAge = profile.current_age
@@ -28,7 +27,6 @@ export default function Dashboard() {
     return Math.max(0, Math.min(100, ((deathAge - currentAge) / deathAge) * 100))
   }
 
-  // Calculate days left
   const daysLeft = () => {
     if (!profile) return 0
     const yearsLeft = profile.estimated_death_age - profile.current_age
@@ -73,6 +71,7 @@ export default function Dashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
     if (!user) {
       throw new Error('User not found. Please sign in.')
     }
@@ -88,6 +87,7 @@ export default function Dashboard() {
         .from('activities')
         .select('*')
         .eq('user_id', user.id)
+
       setActivities(updatedActivities || [])
       setForm({
         name: '',
