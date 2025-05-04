@@ -5,7 +5,6 @@
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
-    "strictNullChecks": false,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
@@ -14,9 +13,9 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "baseUrl": "src",
+    "baseUrl": ".",                  // ✅ REQUIRED for @/* to work properly
     "paths": {
-      "@/*": ["*"]
+      "@/*": ["src/*"]              // ✅ Resolves @/ to the actual src folder
     },
     "plugins": [{ "name": "next" }]
   },
