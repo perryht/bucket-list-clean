@@ -73,15 +73,15 @@ export default function Dashboard() {
     e.preventDefault()
 
     const userId = user?.id ?? ''
-    if (!userId) {
-      throw new Error('User not found. Please sign in.')
-    }
+if (!userId) {
+  throw new Error('User not found. Please sign in.')
+}
 
-    const { error } = await supabase.from('activities').insert({
-      ...form,
-      user_id: userId,
-      completed: false
-    })
+const { error } = await supabase.from('activities').insert({
+  ...form,
+  user_id: userId,
+  completed: false
+})
 
     if (!error) {
       const { data: updatedActivities } = await supabase
