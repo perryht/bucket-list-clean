@@ -63,11 +63,11 @@ export default function Dashboard() {
 
   const handleAdd = async () => {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!form.title.trim()) return
+    if (!form.title.trim() || !user) return
 
     const { error } = await supabase.from('activities').insert({
       ...form,
-      user_id: user.id,
+      user_id: user!.id,
       completed: false
     })
 
@@ -81,7 +81,7 @@ export default function Dashboard() {
     const { data: updated } = await supabase
       .from('activities')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', user!.id)
 
     if (updated) setActivities(updated)
   }
@@ -93,8 +93,9 @@ export default function Dashboard() {
 
   const handleSaveProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
     await supabase.from('profiles').upsert({
-      id: user.id,
+      id: user!.id,
       name: profile.name,
       age_now: profile.ageNow,
       age_estimate: profile.ageEnd,
@@ -114,7 +115,10 @@ export default function Dashboard() {
       return
     }
     setEditingId(null)
-    const { data } = await supabase.from('activities').select('*').eq('user_id', editForm.user_id)
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data } = await supabase.from('activities').select('*').eq('user_id', user!.id)
     if (data) setActivities(data)
   }
 
