@@ -72,11 +72,10 @@ export default function Dashboard() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!user) {
+    const userId = user?.id ?? ''
+    if (!userId) {
       throw new Error('User not found. Please sign in.')
     }
-
-    const userId = user.id
 
     const { error } = await supabase.from('activities').insert({
       ...form,
